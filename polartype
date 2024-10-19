@@ -1,0 +1,123 @@
+"""Add a new axis to a font implementing an arc bend (polar transform) effect."""
+
+import argparse
+import copy
+import math
+
+import tqdm
+from fontTools.designspaceLib import AxisDescriptor, DesignSpaceDocument
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("-o", "--output", metavar="OUTPUT", type=str, help="Output file")
+parser.add_argument("--step", metavar="STEP", type=int, help="Step size", default=25)
+parser.add_argument(
+    "--magnification",
+    metavar="MAG",
+    type=int,
+    help="Magnification (effect of bend per axis step)",
+    default=100,
+)
+parser.add_argument(
+    "--axis-min", metavar="MIN", type=float, help="Minimum axis value", default=-150
+)
+parser.add_argument(
+    "--axis-max", metavar="MAX", type=float, help="Maximum axis value", default=150
+)
+parser.add_argument(
+    "--axis-tag", metavar="TAG", type=str, help="Axis tag", default="BEND"
+)
+parser.add_argument(
+    "--axis-name", metavar="NAME", type=str, help="Axis name", default="bend"
+)
+parser.add_argument("input", metavar="INPUT", type=str, help="Input source file")
+
+args = parser.parse_args()
+
+if args.input.endswith(".glyphs") or args.input.endswith(".glyphspackage"):
+    import glyphsLib
+
+    ds = glyphsLib.to_designspace(glyphsLib.load(args.input))
+elif args.input.endswith(".designspace"):
+    ds = DesignSpaceDocument.fromfile(args.input)
+else:
+    raise ValueError("Unknown file type")
+
+ds.addAxis(
+    AxisDescriptor(
+        name=args.axis_name,
+        tag=args.axis_tag,
+        minimum=args.axis_min,
+        maximum=args.axis_max,
+        default=0,
+    )
+)
+
+
+def bend_font(font, bend, limit=5, scale=1000):
+    for glyph in font:
+        bounds = glyph.getBounds(font)
+        if not bounds:
+            continue
+        cx = (bounds.xMin + bounds.xMax) / 2
+        cy = (bounds.yMin + bounds.yMax) / 2
+        if bend < 0:
+            newcy = font.info.descender + (-limit - bend) * scale
+        else:
+            newcy = font.info.ascender + (limit - bend) * scale
+        # Run the polar transform
+        for contour in glyph:
+            for point in contour:
+                point.x = -math.atan2(point.y - newcy, point.x - cx)
+                point.y = math.hypot(point.x - cx, point.y - newcy)
+                if bend > 0:
+                    point.x = -point.x
+                    point.y = -point.y
+        newbounds = glyph.getBounds(font)
+        newcenterx = (newbounds.xMin + newbounds.xMax) / 2
+        newcentery = (newbounds.yMin + newbounds.yMax) / 2
+        # Scale and transform to original bounds
+        for contour in glyph:
+            for point in contour:
+                point.x = (
+                    point.x
+                    * (bounds.xMax - bounds.xMin)
+                    / (newbounds.xMax - newbounds.xMin)
+                )
+                point.y = (
+                    point.y
+                    * (bounds.yMax - bounds.yMin)
+                    / (newbounds.yMax - newbounds.yMin)
+                )
+        newbounds = glyph.getBounds(font)
+        newcenterx = (newbounds.xMin + newbounds.xMax) / 2
+        newcentery = (newbounds.yMin + newbounds.yMax) / 2
+        for contour in glyph:
+            for point in contour:
+                point.x += -newcenterx + cx
+                point.y += -newcentery + cy
+
+
+step = args.step
+maxbend = args.axis_max
+for master in tqdm.tqdm(list(ds.sources)):
+    master.location[args.axis_name] = 0
+    master.font.save(master.filename, overwrite=True)
+    for bend in tqdm.tqdm(range(args.axis_min, maxbend + step, step)):
+        if bend == 0:
+            continue
+        source = copy.copy(master)
+        source.location = copy.deepcopy(source.location)
+        source.location[args.axis_name] = bend
+        source.styleName = f"{master.styleName} {args.axis_tag}={bend:+.1f}"
+        source.filename = source.filename.replace(".ufo", f"-bend{bend:+.1f}.ufo")
+        font = copy.deepcopy(master.font)
+        bend_font(
+            font,
+            bend * args.magnification,
+            limit=args.magnification * (maxbend + step),
+            scale=1,
+        )
+        font.save(source.filename, overwrite=True)
+        ds.addSource(source)
+
+ds.write(args.output)
