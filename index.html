@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="description" content="" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Untitled</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
+    />
+
+    <script src="https://cdn.jsdelivr.net/gh/peterhry/CircleType@2.3.1/dist/circletype.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "Noto Bendy";
+        src: url(Noto-bend-VF.ttf);
+      }
+      .bendy {
+        font-family: "Noto Bendy";
+        font-size: 50px;
+        height: 6em;
+      }
+      .bend {
+        font-variation-settings: "BEND" 125;
+      }
+      body {
+        font-family: sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Polartype test</h1>
+      <div class="row">
+        <div class="col s8 m4">
+          <div class="card">
+            <div class="card-content">
+              <span class="card-title">Radius Property</span>
+              <form action="#">
+                <p>
+                  Radius:
+                  <input
+                    id="radius"
+                    type="range"
+                    min="100"
+                    value="100"
+                    max="5000"
+                  />
+                </p>
+                <p>
+                  <label>
+                    <input type="checkbox" id="taper" />
+                    <span>Inverse taper</span>
+                  </label>
+                </p>
+              </form>
+            </div>
+          </div>
+        </div>
+        <div class="col s8 m4">
+          <div class="card">
+            <div class="card-content">
+              <span class="card-title">Font axes</span>
+              <form action="#">
+                <p>
+                  Weight:
+                  <input
+                    id="weight"
+                    type="range"
+                    min="100"
+                    value="800"
+                    max="800"
+                  />
+                </p>
+                <p>
+                  Width:
+                  <input
+                    id="width"
+                    type="range"
+                    min="62"
+                    value="100"
+                    max="62"
+                  />
+                </p>
+                <p>Bendyness:</p>
+                <div class="input-field inline">
+                  <span>flare bottom</span>
+                  <input
+                    id="bend"
+                    style="width: 120px"
+                    type="range"
+                    min="-150"
+                    value="-150"
+                    max="150"
+                  />
+                  <span>flare top</span>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col s6">
+          <div class="card grey darken-4">
+            <div class="card-content white-text">
+              <div class="bendy">Hobonop no bend axis</div>
+            </div>
+          </div>
+        </div>
+        <div class="col s6">
+          <div class="card grey darken-4">
+            <div class="card-content white-text">
+              <div class="bendy bend">Hobonop bend axis</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+
+  <script>
+    $(function () {
+      function rebuild() {
+        v = $("#weight").val();
+        $(".bendy").css("font-weight", v);
+        width = "'wdth' " + $("#width").val();
+
+        bend = ", 'BEND' " + $("#bend").val();
+        $(".bendy").css("font-variation-settings", width);
+        $(".bend").css("font-variation-settings", width + bend);
+
+        $(".bendy").each((ix, el) => {
+          const circleType = new CircleType(el);
+          circleType.radius($("#radius").val()).dir(-1);
+        });
+      }
+
+      $("input").on("input", function () {
+        rebuild();
+      });
+
+      $("#radius,#taper").on("input", function () {
+        let distance_from_top = 5000 - $("#radius").val();
+        let factor = -1;
+        if ($("#taper").is(":checked")) {
+          factor = 1;
+        }
+        $("#bend").val(factor * Math.pow(distance_from_top / 4000, 2) * 100);
+        setTimeout(rebuild, 0);
+      });
+
+      rebuild();
+    });
+  </script>
+</html>
